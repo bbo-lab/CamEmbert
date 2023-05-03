@@ -10,10 +10,10 @@ $(DATE):
 define make_capture_in_out_target
 color_master_$i_$o: $(DATE)
 	sleep 1
-	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 90 -m 3 -c
+	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 90 -m 4 -c
 
 color_slave_$i_$o: $(DATE)
-	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 90 -s 3 -c
+	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 90 -s 4 -c
 endef
 $(foreach o, 0 1 2 3, $(foreach i,0 1,$(eval $(call make_capture_in_out_target))))
 
@@ -24,10 +24,10 @@ color_slave_slave: color_slave_0_2 color_slave_1_3
 define make_capture_in_out_target
 gray_master_$i_$o: $(DATE)
 	sleep 1
-	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 200 -m 3 --exposure 5000
+	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 150 -m 4 --exposure 5000
 
 gray_slave_$i_$o: $(DATE)
-	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 200 -s 3 --exposure 5000
+	python3 main.py -i $i -o $(DATE)/$o.mp4 -t 300 -g $(DATE)/$o.csv -f 150 -s 4 --exposure 5000
 endef
 $(foreach o, 0 1 2 3, $(foreach i,0 1,$(eval $(call make_capture_in_out_target))))
 
