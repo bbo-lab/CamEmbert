@@ -33,6 +33,7 @@ parser.add_argument('-t', '--time',         type=float, help = 'Time to record')
 parser.add_argument('-f', '--fps',          type=int, help = 'Framerate')
 parser.add_argument('-e', '--encoder',      type=str, help = 'Encoder')
 parser.add_argument('-c', '--color',        action='store_true', default=False, help='Color Vision')
+parser.add_argument('-x', '--exposure',     type=int, help = 'ExposureTime', default=500)
 
 args = parser.parse_args()
 
@@ -149,11 +150,14 @@ else:
 
     cam = pylon.InstantCamera(tlf.CreateDevice(devices[args.input]))
     cam.Open()
+    #if args.featureload:
+     #   pylon.FeaturePersistence.Load(args.featureload, cam.GetNodeMap(), True)
     print("Using device ", cam.GetDeviceInfo().GetModelName())
-    cam.AcquisitionFrameRateEnable.SetValue(False)
+    cam.AcquisitionFrameRateEnable.SetValue(True)
     cam.AcquisitionFrameRate.SetValue(fps)
     cam.Gamma.SetValue(0.5)
-    cam.ExposureTime.SetValue(500.0)
+    cam.ExposureTime.SetValue(args.exposure)
+    cam.DeviceLinkThroughputLimitMode.SetValue('Off')
 
     if args.slave is not None:
         cam.TriggerMode.SetValue('On')
@@ -210,7 +214,10 @@ def worker():
             gx += gy
             np.sqrt(gx,out=gx)
             print(*img.shape,"White","{:.3f}".format(np.count_nonzero(img == 255) / np.prod(img.shape)),"Black","{:.3f}".format(np.count_nonzero(img == 0) / np.prod(img.shape)),"Sharpness",np.average(gx))
-            cv2.imshow('Frame',img)
+            if args.color:
+                cv2.imshow('Frame',cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+            else:
+                cv2.imshow('Frame',img)
             if cv2.waitKey(1) == ord('q'):
                 break
         if args.color:
@@ -258,3 +265,4 @@ cam.Close()
 print("Done")
 th.join()
 pipe.stdin.close()
+
