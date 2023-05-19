@@ -282,8 +282,8 @@ time_e = timer()
 if args.preview:
     import matplotlib.pyplot as plt
     im = plt.imshow(np.random.randn(10,10),vmin=0, vmax=255)
+    plt.show(block = False)
     while grabber_thread.is_alive():
-        plt.show(block = False)
         plt.pause(0.01)
         if last_grapped_img is not None:
             im.set_array(last_grapped_img)
