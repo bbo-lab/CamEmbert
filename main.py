@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import pypylon.pylon as pylon
-from imageio import get_writer
 import ffmpeg
 import numpy as np
 import subprocess as sp
@@ -11,17 +10,12 @@ import sys
 import threading
 import time
 import queue
-import cv2
 import argparse
 import signal
 import os
 from datetime import datetime
 
 exit = threading.Event()
-out_filename = 'output-filename.mp4'
-#width = 1440
-width = 1472
-height = 1080
 
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('-g', '--frametable',   type=str, help='Table with frametimes')
@@ -32,10 +26,16 @@ parser.add_argument('-s', '--slave',        type=int, help = 'Configure camera t
 parser.add_argument('-t', '--time',         type=float, help = 'Time to record')
 parser.add_argument('-f', '--fps',          type=int, help = 'Framerate')
 parser.add_argument('-e', '--encoder',      type=str, help = 'Encoder')
+parser.add_argument('-sw', '--width',        type=int, help = 'Width of recorded video', default = 1472)
+parser.add_argument('-sh', '--height',       type=int, help = 'Height of recorded video', default = 1080)
 parser.add_argument('-c', '--color',        action='store_true', default=False, help='Color Vision')
 parser.add_argument('-x', '--exposure',     type=int, help = 'ExposureTime', default=500)
+parser.add_argument('-p', '--preview',      action='store_true', default=False, help='Show preview')
 
 args = parser.parse_args()
+
+width = args.width
+height = args.height
 
 dummy = int(args.input) < 0
 codec = None
@@ -54,22 +54,24 @@ elif args.encoder == 'dummy':
 #
         #'-vcodec', 'h264_amf',
 
-command = [ "ffmpeg",
-        '-y', # (optional) overwrite output file if it exists
-        '-f', 'rawvideo',
-        '-vcodec','rawvideo',
-        '-s', str(width) + 'x' + str(height), # size of one frame
-        '-pix_fmt', 'rgb24',
-        '-r', '60', # frames per second
-        '-rtbufsize', '2G',
-        *codec,
-        '-preset', 'medium',
-        '-qmin', '10',
-        '-qmax', '26',
-        '-b:v', '50M',
-        args.output]
-print(command)
-pipe = sp.Popen( command, stdin=sp.PIPE, stderr=sp.STDOUT,bufsize=1000,preexec_fn=os.setpgrp)
+pipe = None
+if args.output is not None:
+    command = [ "ffmpeg",
+            '-y', # (optional) overwrite output file if it exists
+            '-f', 'rawvideo',
+            '-vcodec','rawvideo',
+            '-s', str(width) + 'x' + str(height), # size of one frame
+            '-pix_fmt', 'rgb24',
+            '-r', '60', # frames per second
+            '-rtbufsize', '2G',
+            *codec,
+            '-preset', 'medium',
+            '-qmin', '10',
+            '-qmax', '26',
+            '-b:v', '50M',
+            args.output]
+    print(command)
+    pipe = sp.Popen( command, stdin=sp.PIPE, stderr=sp.STDOUT,bufsize=1000,preexec_fn=os.setpgrp)
 
 
 def signal_handler(sig, frame):
@@ -78,12 +80,10 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-print(*command)
 #ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input -c:v h264_nvenc -preset slow output
 
-fps = int(args.fps)  # Hz
 time_to_record = int(args.time)  # seconds
-images_to_grab = (fps * time_to_record) // 3 * 3
+images_to_grab = (args.fps * time_to_record) // 3 * 3
 
 class DummyResult:
     def GrabSucceeded(self):
@@ -103,26 +103,42 @@ class DummyResult:
         return 0
 
 
+def get_capture_frame_string(frame):
+    if frame is None:
+        return "BlockId CaptureTime SystemCaptureTime ExposureTime"
+    else:
+        return str(frame.BlockID) + ' ' + str(frame.CaptureTime) + ' ' + str(frame.SystemCaptureTime) + ' ' + str(frame.ExposureTime)
+        
+
+class CapturedFrame:
+    def __init__(self, img, BlockID = None, CaptureTime = None, SystemCaptureTime = None, ExposureTime = None):
+        self.img = img
+        self.BlockID = BlockID
+        self.CaptureTime = CaptureTime
+        self.SystemCaptureTime = SystemCaptureTime
+        self.ExposureTime = ExposureTime
+
+
 class DummyCam:
     def __init__(self):
         self.images_to_grab =1000
         self.BlockID = 0
-        
-    def RetrieveResult(self,x,y):
         x = np.linspace(-5, 5, width)
         y = np.linspace(-5, 5, height)
         xx, yy = np.meshgrid(x, y)
         np.square(xx,out=xx)
         np.square(yy,out=yy)
-        zz = xx + yy
-        zz += self.BlockID * 0.1
+        self.zz = xx + yy
+        
+    def RetrieveResult(self,x,y):
+        zz = self.zz + self.BlockID * 0.1
         np.sin(zz,out=zz)
         zz *= 127
-        zz += 127
         zz = zz.astype(np.uint8)
+        zz += 127
         Array = None
         if args.color:
-            Array = np.tstack((zz,zz,zz))
+            Array = np.dstack((zz,zz,zz))
         else:
             Array = zz
         tmp = DummyResult(self.BlockID, Array)
@@ -137,7 +153,6 @@ class DummyCam:
 
     def Close(self):
         pass
-
 
     def StartGrabbingMax(self,images_to_grab, strategy):
         self.images_to_grab = images_to_grab
@@ -154,7 +169,7 @@ else:
      #   pylon.FeaturePersistence.Load(args.featureload, cam.GetNodeMap(), True)
     print("Using device ", cam.GetDeviceInfo().GetModelName())
     cam.AcquisitionFrameRateEnable.SetValue(True)
-    cam.AcquisitionFrameRate.SetValue(fps)
+    cam.AcquisitionFrameRate.SetValue(args.fps)
     cam.Gamma.SetValue(0.5)
     cam.ExposureTime.SetValue(args.exposure)
     cam.DeviceLinkThroughputLimitMode.SetValue('Off')
@@ -182,11 +197,10 @@ else:
     else:
         cam.PixelFormat.SetValue('Mono8')
 
-    print(f"Recording {time_to_record} second video at {fps} fps")
+    print(f"Recording {time_to_record} second video at {args.fps} fps")
 cam.StartGrabbingMax(images_to_grab, pylon.GrabStrategy_OneByOne)
 
 lastframe = -1
-count = 0
 arraybuffer = np.zeros((height,width,3),dtype=np.uint8)
 
 time_s = timer()
@@ -194,10 +208,11 @@ time_s = timer()
 q = queue.Queue()
 
 
-def worker():
+def writer():
     frametimefile = None
     if args.frametable is not None:
         frametimefile = open(args.frametable, "w")
+        frametimefile.write(get_capture_frame_string(None) + '\n')
     count = 0
     while True:
         tmp = q.get()
@@ -206,7 +221,7 @@ def worker():
         img, BlockID, CaptureTime, SystemCaptureTime = tmp
         vsize = np.min((img.shape[0:2],arraybuffer.shape[0:2]),axis=0)
         if frametimefile is not None:
-            frametimefile.write(str(BlockID) + " " + str(CaptureTime) + " " + str(SystemCaptureTime) + '\n')
+            frametimefile.write(get_capture_frame_string(tmp) + '\n')
         if count % 200 == 0:
             gy, gx = np.gradient(img,axis=(0,1))
             np.square(gx,out=gx)
@@ -214,55 +229,72 @@ def worker():
             gx += gy
             np.sqrt(gx,out=gx)
             print(*img.shape,"White","{:.3f}".format(np.count_nonzero(img == 255) / np.prod(img.shape)),"Black","{:.3f}".format(np.count_nonzero(img == 0) / np.prod(img.shape)),"Sharpness",np.average(gx))
-            if args.color:
-                cv2.imshow('Frame',cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-            else:
-                cv2.imshow('Frame',img)
-            if cv2.waitKey(1) == ord('q'):
-                break
         if args.color:
             arraybuffer[0:vsize[0],0:vsize[1]] = img[0:vsize[0],0:vsize[1]].astype(np.uint8,copy=False)
-            pipe.stdin.write( arraybuffer.tobytes() )
+            if pipe is not None:
+                pipe.stdin.write( arraybuffer.tobytes() )
         else:
             arraybuffer[0:vsize[0],0:vsize[1],count % 3] = img[0:vsize[0],0:vsize[1]].astype(np.uint8,copy=False)
             if count % 3 == 2:
-                pipe.stdin.write( arraybuffer.tobytes() )
+                if pipe is not None:
+                    pipe.stdin.write( arraybuffer.tobytes() )
         count = count + 1
-    print("Worker exited")
+    print("Writer exited")
 
-# Turn-on the worker thread.
-th = threading.Thread(target=worker, daemon=True)
-th.start()
+last_grapped_img = None
 
-try:
-    while cam.IsGrabbing() and not exit.is_set():
-        with cam.RetrieveResult(10000, pylon.TimeoutHandling_ThrowException) as res:
-            if res.GrabSucceeded():
-                img = res.Array
-                q.put((img,res.BlockID,res.GetTimeStamp(),datetime.now().timestamp()))
-                if q.qsize() == fps:
-                    print("Warning ", q.qsize()//fps, " second of video enqueued")
-                if res.BlockID != lastframe + 1:
-                    print("dropped " + str(res.BlockID - lastframe - 1) +  " frame ",lastframe,"to",res.BlockID - 1)
-                lastframe = res.BlockID
-                print(res.BlockID, end='\r')
-                count += 1
-            else:
-                print("Grab failed")
-                # raise RuntimeError("Grab failed")
-except Exception as inst:
-    print(inst)
-q.put(None)
+def grabber():
+    count = 0
+    lastframe = -1
+    try:
+        while cam.IsGrabbing() and not exit.is_set():
+            with cam.RetrieveResult(10000, pylon.TimeoutHandling_ThrowException) as res:
+                if res.GrabSucceeded():
+                    img = res.Array
+                    global last_grapped_img
+                    last_grapped_img = img
+                    q.put((img,res.BlockID,res.GetTimeStamp(),datetime.now().timestamp()))
+                    if q.qsize() == args.fps:
+                        print("Warning ", q.qsize()//args.fps, " second of video enqueued")
+                    if res.BlockID != lastframe + 1:
+                        print("dropped " + str(res.BlockID - lastframe - 1) +  " frame ",lastframe,"to",res.BlockID - 1)
+                    lastframe = res.BlockID
+                    print(res.BlockID, end='\r')
+                    count += 1
+                else:
+                    print("Grab failed")
+                    # raise RuntimeError("Grab failed") 
+    except Exception as inst:
+        print(inst)
+    q.put(None)
+    cam.StopGrabbing()
+    cam.Close()
+    print("Grabber exited")
+
+grabber_thread = threading.Thread(target=grabber, daemon=True)
+grabber_thread.start()
+
+writer_thread = threading.Thread(target=writer, daemon=True)
+writer_thread.start()
 time_e = timer()
+
+
+if args.preview:
+    import matplotlib.pyplot as plt
+    im = plt.imshow(np.random.randn(10,10),vmin=0, vmax=255)
+    while grabber_thread.is_alive():
+        plt.show(block = False)
+        plt.pause(0.01)
+        if last_grapped_img is not None:
+            im.set_array(last_grapped_img)
+
+grabber_thread.join()
+writer_thread.join()
+
+if pipe is not None:
+    pipe.stdin.close()
 
 print("Got", lastframe, "of", images_to_grab)
 print(images_to_grab, "/", (time_e - time_s))
 print("Framerate theoretical",images_to_grab / ((time_e - time_s)), "real",lastframe / ((time_e - time_s)))
-print("Saving...", end=' ')
-#process2.wait()
-cam.StopGrabbing()
-cam.Close()
 print("Done")
-th.join()
-pipe.stdin.close()
-
