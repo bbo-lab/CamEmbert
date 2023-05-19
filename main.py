@@ -218,7 +218,7 @@ def writer():
         tmp = q.get()
         if tmp is None:
             break
-        img, BlockID, CaptureTime, SystemCaptureTime = tmp
+        img = tmp.img
         vsize = np.min((img.shape[0:2],arraybuffer.shape[0:2]),axis=0)
         if frametimefile is not None:
             frametimefile.write(get_capture_frame_string(tmp) + '\n')
@@ -253,7 +253,7 @@ def grabber():
                     img = res.Array
                     global last_grapped_img
                     last_grapped_img = img
-                    q.put((img,res.BlockID,res.GetTimeStamp(),datetime.now().timestamp()))
+                    q.put(CapturedFrame(img,BlockID=res.BlockID,CaptureTime=res.GetTimeStamp(),SystemCaptureTime=datetime.now().timestamp(),ExposureTime=0))
                     if q.qsize() == args.fps:
                         print("Warning ", q.qsize()//args.fps, " second of video enqueued")
                     if res.BlockID != lastframe + 1:
