@@ -43,7 +43,7 @@ codec = None
 #, '-vf', "'format=nv12,hwupload'"
 if args.encoder is None:
     args.encoder = 'hevc_nvenc'
-elif args.encoder == 'hevc_nvenc':
+if args.encoder == 'hevc_nvenc':
     codec = ['-i', '-', '-an','-vcodec', 'hevc_nvenc']
 elif args.encoder == '264_vaapi':
     codec =  ['-hwaccel', 'vaapi' '-hwaccel_output_format', 'hevc_vaapi', '-vaapi_device', '/dev/dri/renderD128', '-i', '-', '-an', '-c:v', 'hevc_vaapi']
@@ -257,7 +257,7 @@ def grabber():
                     img = res.Array
                     global last_grapped_img
                     last_grapped_img = img
-                    q.put(CapturedFrame(img,BlockID=res.BlockID,CaptureTime=res.GetTimeStamp(),SystemCaptureTime=datetime.now().timestamp(),ExposureTime=0))
+                    q.put(CapturedFrame(img,BlockID=res.BlockID,CaptureTime=res.GetTimeStamp(),SystemCaptureTime=datetime.now().timestamp(),ExposureTime=cam.ExposureTime.GetValue()))
                     if q.qsize() == args.fps:
                         print("Warning ", q.qsize()//args.fps, " second of video enqueued")
                     if res.BlockID != lastframe + 1:
