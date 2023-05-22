@@ -43,14 +43,18 @@ codec = None
 #, '-vf', "'format=nv12,hwupload'"
 if args.encoder is None:
     args.encoder = 'hevc_nvenc'
-if args.encoder == 'hevc_nvenc':
+elif args.encoder == 'hevc_nvenc':
     codec = ['-i', '-', '-an','-vcodec', 'hevc_nvenc']
-if args.encoder == '264_vaapi':
+elif args.encoder == '264_vaapi':
     codec =  ['-hwaccel', 'vaapi' '-hwaccel_output_format', 'hevc_vaapi', '-vaapi_device', '/dev/dri/renderD128', '-i', '-', '-an', '-c:v', 'hevc_vaapi']
 elif args.encoder == 'uncompressed':
     codec = ['-f','rawvideo']
+elif args.encoder == 'libx264':
+    codec = ['-i', '-', '-vcodec', 'libx264']
 elif args.encoder == 'dummy':
     codec = ['null']
+else:
+    raise Exception("Encoder " + args.encoder + " not known")
 #
         #'-vcodec', 'h264_amf',
 
@@ -263,7 +267,6 @@ def grabber():
                     count += 1
                 else:
                     print("Grab failed")
-                    # raise RuntimeError("Grab failed") 
     except Exception as inst:
         print(inst)
     q.put(None)
@@ -284,7 +287,8 @@ if args.preview:
     im = plt.imshow(np.random.randn(10,10),vmin=0, vmax=255)
     plt.show(block = False)
     while grabber_thread.is_alive():
-        plt.pause(0.01)
+        plt.gcf().canvas.draw_idle()
+        plt.gcf().canvas.start_event_loop(0.01)
         if last_grapped_img is not None:
             im.set_array(last_grapped_img)
 
