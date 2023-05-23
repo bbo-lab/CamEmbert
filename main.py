@@ -45,6 +45,8 @@ if args.encoder is None:
     args.encoder = 'hevc_nvenc'
 if args.encoder == 'hevc_nvenc':
     codec = ['-i', '-', '-an','-vcodec', 'hevc_nvenc']
+elif args.encoder == 'h264_nvenc':
+    codec = ['-i', '-', '-an','-vcodec', 'h264_nvenc']
 elif args.encoder == '264_vaapi':
     codec =  ['-hwaccel', 'vaapi' '-hwaccel_output_format', 'hevc_vaapi', '-vaapi_device', '/dev/dri/renderD128', '-i', '-', '-an', '-c:v', 'hevc_vaapi']
 elif args.encoder == 'uncompressed':
@@ -123,6 +125,17 @@ class CapturedFrame:
         self.ExposureTime = ExposureTime
 
 
+class IFloat:
+    def __init__(self,Value=0):
+        self.Value = 0
+
+    def SetValue(self, Value):
+        self.Value = Value
+
+    def GetValue(self):
+        return self.Value
+
+
 class DummyCam:
     def __init__(self):
         self.images_to_grab =1000
@@ -133,7 +146,8 @@ class DummyCam:
         np.square(xx,out=xx)
         np.square(yy,out=yy)
         self.zz = xx + yy
-        
+        self.ExposureTime = IFloat(1)
+
     def RetrieveResult(self,x,y):
         zz = self.zz + self.BlockID * 0.1
         np.sin(zz,out=zz)
