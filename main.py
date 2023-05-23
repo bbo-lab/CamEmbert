@@ -271,7 +271,7 @@ def grabber():
                     img = res.Array
                     global last_grapped_img
                     last_grapped_img = img
-                    q.put(CapturedFrame(img,BlockID=res.BlockID,CaptureTime=res.GetTimeStamp(),SystemCaptureTime=datetime.now().timestamp(),ExposureTime=cam.ExposureTime.GetValue()))
+                    q.put(CapturedFrame(img,BlockID=res.BlockID,CaptureTime=res.GetTimeStamp(),SystemCaptureTime=datetime.now().timestamp(),ExposureTime=0))
                     if q.qsize() == args.fps:
                         print("Warning ", q.qsize()//args.fps, " second of video enqueued")
                     if res.BlockID != lastframe + 1:
@@ -302,7 +302,7 @@ if args.preview:
     plt.show(block = False)
     while grabber_thread.is_alive():
         plt.gcf().canvas.draw_idle()
-        plt.gcf().canvas.start_event_loop(0.01)
+        plt.gcf().canvas.start_event_loop(0.5)
         if last_grapped_img is not None:
             im.set_array(last_grapped_img)
 
