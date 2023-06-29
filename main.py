@@ -316,8 +316,9 @@ if args.preview:
     from matplotlib.widgets import TextBox
     from matplotlib.widgets import Button
 
-    fig, ax = plt.subplots()
-    im = ax.imshow(np.random.randn(10, 10), vmin=0, vmax=255)
+    ax = plt.axes([0.0, 0.05, 1, 0.95])
+    im = ax.imshow(np.random.randn(10, 10), vmin=0, vmax=255, cmap=None if args.color else "gnuplot")
+    ax.axis('off')
     ax_button_decrease_exposure_time = plt.axes([0.0, 0.0, 0.1, 0.05])
     ax_text_field_exposure_time = plt.axes([0.2, 0.0, 0.1, 0.05])
     ax_button_increase_exposure_time = plt.axes([0.3, 0.0, 0.1, 0.05])
@@ -325,7 +326,6 @@ if args.preview:
     button_decrease_exposure_time =  Button(ax_button_decrease_exposure_time, label="<", color='pink', hovercolor='tomato')
     text_box_exposure_time = TextBox(ax_text_field_exposure_time, 'exp', initial=str(args.exposure))
     button_increase_exposure_time =  Button(ax_button_increase_exposure_time, label=">", color='pink', hovercolor='tomato')
-
 
     def submit(text):
         args.exposure = eval(text)
