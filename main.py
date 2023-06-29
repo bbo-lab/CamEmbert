@@ -314,21 +314,39 @@ time_e = timer()
 if args.preview:
     import matplotlib.pyplot as plt
     from matplotlib.widgets import TextBox
+    from matplotlib.widgets import Button
 
     fig, ax = plt.subplots()
     im = ax.imshow(np.random.randn(10, 10), vmin=0, vmax=255)
-    axbox = plt.axes([0.0, 0.0, 0.1, 0.05])
-    text_box = TextBox(axbox, 'exp', initial=str(args.exposure))
+    ax_button_decrease_exposure_time = plt.axes([0.0, 0.0, 0.1, 0.05])
+    ax_text_field_exposure_time = plt.axes([0.2, 0.0, 0.1, 0.05])
+    ax_button_increase_exposure_time = plt.axes([0.3, 0.0, 0.1, 0.05])
+
+    button_decrease_exposure_time =  Button(ax_button_decrease_exposure_time, label="<", color='pink', hovercolor='tomato')
+    text_box_exposure_time = TextBox(ax_text_field_exposure_time, 'exp', initial=str(args.exposure))
+    button_increase_exposure_time =  Button(ax_button_increase_exposure_time, label=">", color='pink', hovercolor='tomato')
 
 
     def submit(text):
-        # ydata = eval(text)
-        args.exposure = int(text)
+        args.exposure = eval(text)
         changed_exposure.set()
         plt.draw()
 
 
-    text_box.on_submit(submit)
+    def decrease_exposure_time(event):
+        args.exposure /= pow(10, 0.1)
+        text_box_exposure_time.set_val("{:.2f}".format(args.exposure))
+
+
+    def increase_exposure_time(event):
+        args.exposure *= pow(10, 0.1)
+        text_box_exposure_time.set_val("{:.2f}".format(args.exposure))
+
+
+    text_box_exposure_time.on_submit(submit)
+    button_decrease_exposure_time.on_clicked(decrease_exposure_time)
+    button_increase_exposure_time.on_clicked(increase_exposure_time)
+
 
     plt.tight_layout()
     plt.show(block=False)
