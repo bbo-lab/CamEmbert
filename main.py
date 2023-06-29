@@ -16,6 +16,7 @@ import os
 from datetime import datetime
 
 exit = threading.Event()
+changed_exposure = threading.Event()
 
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('-g', '--frametable',   type=str, help='Table with frametimes')
@@ -101,7 +102,7 @@ class DummyResult:
 
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
@@ -114,7 +115,7 @@ def get_capture_frame_string(frame):
         return "BlockId CaptureTime SystemCaptureTime ExposureTime"
     else:
         return str(frame.BlockID) + ' ' + str(frame.CaptureTime) + ' ' + str(frame.SystemCaptureTime) + ' ' + str(frame.ExposureTime)
-        
+
 
 class CapturedFrame:
     def __init__(self, img, BlockID = None, CaptureTime = None, SystemCaptureTime = None, ExposureTime = None):
@@ -151,9 +152,10 @@ class DummyCam:
     def RetrieveResult(self,x,y):
         zz = self.zz + self.BlockID * 0.1
         np.sin(zz,out=zz)
-        zz *= 127
+        exp = self.ExposureTime.GetValue() / 10000
+        zz *= exp * 127
         zz = zz.astype(np.uint8)
-        zz += 127
+        zz += int(exp * 127)
         Array = None
         if args.color:
             Array = np.dstack((zz,zz,zz))
@@ -165,7 +167,7 @@ class DummyCam:
 
     def IsGrabbing(self):
         return self.BlockID < self.images_to_grab
-    
+
     def StopGrabbing(self):
         pass
 
@@ -209,9 +211,9 @@ else:
         cam.TriggerDelay.SetValue(0)
         cam.LineMode.SetValue('Output')
         cam.LineSource.SetValue('ExposureActive')
-    print('color',args.color)   
+    print('color',args.color)
     if args.color is not None and args.color:
-        cam.PixelFormat.SetValue('RGB8')        
+        cam.PixelFormat.SetValue('RGB8')
     else:
         cam.PixelFormat.SetValue('Mono8')
 
@@ -281,6 +283,9 @@ def grabber():
                     count += 1
                 else:
                     print("Grab failed")
+                if changed_exposure.is_set():
+                    changed_exposure.clear()
+                    cam.ExposureTime.SetValue(args.exposure)
     except Exception as inst:
         print(inst)
     q.put(None)
@@ -298,7 +303,20 @@ time_e = timer()
 
 if args.preview:
     import matplotlib.pyplot as plt
-    im = plt.imshow(np.random.randn(10,10),vmin=0, vmax=255)
+    from matplotlib.widgets import TextBox
+    fig, ax = plt.subplots()
+    im = ax.imshow(np.random.randn(10,10),vmin=0, vmax=255)
+    axbox = plt.axes([0.0, 0.0, 0.1, 0.05])
+    text_box = TextBox(axbox, 'exp', initial=str(args.exposure))
+
+    def submit(text):
+        #ydata = eval(text)
+        args.exposure = int(text)
+        changed_exposure.set()
+        plt.draw()
+
+    text_box.on_submit(submit)
+
     plt.tight_layout()
     plt.show(block = False)
     while grabber_thread.is_alive():
