@@ -27,6 +27,7 @@ parser.add_argument('-s', '--slave', type=int, help='Configure camera to be trig
 parser.add_argument('-t', '--time', type=float, help='Time to record')
 parser.add_argument('-f', '--fps', type=int, help='Framerate')
 parser.add_argument('-e', '--encoder', type=str, help='Encoder')
+parser.add_argument('-pr', '--preset', type=str, help='Encoder', default='medium')
 parser.add_argument('-sw', '--width', type=int, help='Width of recorded video', default=1472)
 parser.add_argument('-sh', '--height', type=int, help='Height of recorded video', default=1080)
 parser.add_argument('-c', '--color', action='store_true', default=False, help='Color Vision')
@@ -55,6 +56,8 @@ elif args.encoder == 'uncompressed':
     codec = ['-f', 'rawvideo']
 elif args.encoder == 'libx264':
     codec = ['-i', '-', '-vcodec', 'libx264']
+elif args.encoder == 'h264_v4l2m2m':
+    codec = ['-i','-','-c:v', 'h264_v4l2m2m']
 elif args.encoder == 'dummy':
     codec = ['null']
 else:
@@ -73,7 +76,7 @@ if args.output is not None:
                '-r', '60',  # frames per second
                '-rtbufsize', '2G',
                *codec,
-               '-preset', 'medium',
+               '-preset', args.preset,
                '-qmin', '10',
                '-qmax', '26',
                '-b:v', '50M',
@@ -256,9 +259,12 @@ def writer():
             print(*img.shape, "White", "{:.3f}".format(np.count_nonzero(img == 255) / np.prod(img.shape)), "Black",
                   "{:.3f}".format(np.count_nonzero(img == 0) / np.prod(img.shape)), "Sharpness", np.average(gx))
         if args.color:
-            arraybuffer[0:vsize[0], 0:vsize[1]] = img[0:vsize[0], 0:vsize[1]].astype(np.uint8, copy=False)
-            if pipe is not None:
-                pipe.stdin.write(arraybuffer.tobytes())
+            if np.array_equal(img.shape[0:2], vsize):
+                pipe.stdin.write(img.tobytes())
+            else:
+                arraybuffer[0:vsize[0], 0:vsize[1]] = img[0:vsize[0], 0:vsize[1]].astype(np.uint8, copy=False)
+                if pipe is not None:
+                    pipe.stdin.write(arraybuffer.tobytes())
         else:
             arraybuffer[0:vsize[0], 0:vsize[1], count % 3] = img[0:vsize[0], 0:vsize[1]].astype(np.uint8, copy=False)
             if count % 3 == 2:
